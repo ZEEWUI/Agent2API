@@ -1,0 +1,38 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8787,
+    "read_timeout_sec": 60,
+    "max_body_mib": 32
+  },
+  "upstream": {
+    "platforms": [
+      { "id": "workbuddy", "sanitize": true },
+      { "id": "workbuddy-global", "sanitize": true },
+      { "id": "kilo", "model_cache_ttl_sec": 60 },
+      { "id": "trae-cn" },
+      { "id": "kiro", "model_cache_ttl_sec": 60 }
+    ],
+    "sanitize": true,
+    "stream_idle_timeout_sec": 120,
+    "stream_total_timeout_sec": 1800,
+    "request_timeout_sec": 60,
+    "model_cache_ttl_sec": 1800,
+    "max_concurrency_per_account": 0
+  },
+  "models": {
+    "image_limits": {},
+    "image_overflow_policies": {},
+    "aliases": {}
+  },
+  "gateway": {
+    "max_upstream_attempts": 6,
+    "routing_timeout_sec": 600,
+    "queue_timeout_sec": 30,
+    "max_queued_requests": 64
+  },
+  "auth": {
+    "api_key": ""
+  },
+  "metrics_file": "/data/metrics.json"
+}
