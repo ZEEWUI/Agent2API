@@ -92,7 +92,39 @@ func imageLimitFailure(platform, model string, current, limit int) *llm.Failure 
 		Message: fmt.Sprintf("模型 %s/%s 的单请求图片数量护栏为 %d 张，当前请求包含 %d 张（含历史消息及工具结果中的图片）。请开新对话、换模型或减少历史图片后重试；网关未裁剪请求内容。", platform, model, limit, current)}
 }
 
+// applyGatewaySystemPrompt 把网关级 system prompt 合并进本次转发请求。
+//
+// 位置：openPlatformStream 的最前面，即所有路由/重试共享的唯一出口。
+// 空配置时直接返回原请求，默认行为与上线前完全一致。
+// SystemBlocks 非空时一并处理，否则优先读 blocks 的适配器（openrouter 等）
+// 会忽略 SystemPrompt 的改动。
+func (a *App) applyGatewaySystemPrompt(req llm.RequestMessages) llm.RequestMessages {
+	if !a.cfg.Gateway.SystemPromptActive() {
+		return req
+	}
+	merged := a.cfg.Gateway.SystemPromptMerge(req.SystemPrompt)
+	prompt := strings.TrimSpace(a.cfg.Gateway.SystemPrompt)
+	req.SystemPrompt = merged
+	if len(req.SystemBlocks) == 0 {
+		return req
+	}
+	switch a.cfg.Gateway.SystemPromptMode {
+	case "replace":
+		req.SystemBlocks = nil
+	case "append":
+		blocks := make([]llm.Content, 0, len(req.SystemBlocks)+1)
+		blocks = append(blocks, req.SystemBlocks...)
+		req.SystemBlocks = append(blocks, llm.Content{Type: llm.ContentText, Text: prompt})
+	default:
+		blocks := make([]llm.Content, 0, len(req.SystemBlocks)+1)
+		blocks = append(blocks, llm.Content{Type: llm.ContentText, Text: prompt})
+		req.SystemBlocks = append(blocks, req.SystemBlocks...)
+	}
+	return req
+}
+
 func (a *App) openPlatformStream(ctx context.Context, rt *PlatformRuntime, req llm.RequestMessages, records ...*obs.Record) (llm.ResponseStream, error) {
+	req = a.applyGatewaySystemPrompt(req)
 	count := requestImageCount(req)
 	policy := a.cfg.Models.ImageOverflowPolicyFor(rt.ID, req.Model)
 	var rec *obs.Record

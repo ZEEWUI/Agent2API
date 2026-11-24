@@ -29,7 +29,9 @@
     "max_upstream_attempts": 6,
     "routing_timeout_sec": 600,
     "queue_timeout_sec": 30,
-    "max_queued_requests": 64
+    "max_queued_requests": 64,
+    "system_prompt": "",
+    "system_prompt_mode": "prepend"
   },
   "auth": {
     "api_key": ""

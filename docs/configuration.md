@@ -21,6 +21,8 @@
 | `gateway.routing_timeout_sec` | `600` | 排队、上传及接受响应前的总等待预算 |
 | `gateway.queue_timeout_sec` | `30` | 所有候选账号满载时的最多排队时间 |
 | `gateway.max_queued_requests` | `128` | 每个平台的本地等待人数上限 |
+| `gateway.system_prompt` | 空 | 网关级系统提示词；空表示不改写请求 |
+| `gateway.system_prompt_mode` | `prepend` | `prepend` / `append` / `replace` |
 | `auth.api_key` | 空 | 本地网关访问密钥，与上游 API Key 分开 |
 | `metrics_file` | 由启动入口推导 | 显式路径优先；默认位置见[运行手册](operations.md#备份与恢复) |
 
@@ -234,6 +236,24 @@ HTTP 请求体默认上限为 **256 MiB**，可通过 `server.max_body_mib` 调�
 - 两项秒数范围为 1–86400，等待人数为 1–100000；0 均表示使用默认值。这些设置在启动时读取，可从 `/api/config` 查看当前生效值。
 
 这些预算保护的是不同阶段。遇到长请求失败时，先查看调用详情中的 `error_code`、`attempts`、排队与首段等待，不要把每个超时统一处理成“增加非流式超时”。客户端或前置代理先停止等待，仍可能导致取消，见[故障排查](troubleshooting.md#长请求与超时)。
+
+## 网关级系统提示词（gateway.system_prompt）
+
+```json
+{
+  "gateway": {
+    "system_prompt": "You are YAN. Answer with conclusions first.",
+    "system_prompt_mode": "prepend"
+  }
+}
+```
+
+- `system_prompt` 默认空字符串：**空值时不改写任何请求**，客户端 system 原样转发，行为与未引入该配置项时完全一致。
+- `system_prompt_mode` 决定合并方式：`prepend`（默认，网关提示词在前）、`append`（客户端 system 在前）、`replace`（丢弃客户端 system，只用网关提示词）。未知取值按 `prepend` 处理，配置写错不会让请求不可用。
+- 合并发生在 `openPlatformStream`，即所有路由、账号重试和平台回退共用的唯一出口；每次尝试拿到的是同一份原始请求，不会重复叠加。
+- Anthropic 协议的 `system` blocks（分区缓存边界）会一并处理：`prepend` 在最前面插一个 text block，`append` 追加到末尾，`replace` 清空 blocks。只改 `SystemPrompt` 会被优先读 blocks 的适配器（OpenRouter 等）忽略。
+- 上游 `sanitize` 仍在其后执行：网关提示词同样会被送进脱敏流程，因此不要在提示词里写需要原样到达上游的敏感词。
+- 该配置在启动时读取，修改后需重启进程；控制台的 `/api/config` 不回写此字段。
 
 ## Prometheus 指标（/metrics）
 

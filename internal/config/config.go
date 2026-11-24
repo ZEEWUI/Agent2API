@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -28,6 +29,45 @@ type GatewayConfig struct {
 	RoutingTimeoutSec   int `json:"routing_timeout_sec,omitempty"`
 	QueueTimeoutSec     int `json:"queue_timeout_sec,omitempty"`
 	MaxQueuedRequests   int `json:"max_queued_requests,omitempty"`
+
+	// SystemPrompt 是网关级系统提示词；空字符串（默认）表示不改写任何请求，
+	// 客户端的 system 内容原样转发。配置后按 SystemPromptMode 合并。
+	SystemPrompt string `json:"system_prompt,omitempty"`
+	// SystemPromptMode 决定合并方式：
+	//
+	//	prepend（默认）网关提示词在前，客户端 system 在后
+	//	append          客户端 system 在前，网关提示词在后
+	//	replace         丢弃客户端 system，只用网关提示词
+	//
+	// 未知取值按 prepend 处理，避免配置写错导致请求不可用。
+	SystemPromptMode string `json:"system_prompt_mode,omitempty"`
+}
+
+// SystemPromptMerge 返回合并后的 system 文本；空网关提示词时原样返回 base。
+func (g GatewayConfig) SystemPromptMerge(base string) string {
+	prompt := strings.TrimSpace(g.SystemPrompt)
+	if prompt == "" {
+		return base
+	}
+	switch g.SystemPromptMode {
+	case "replace":
+		return prompt
+	case "append":
+		if base == "" {
+			return prompt
+		}
+		return base + "\n\n" + prompt
+	default:
+		if base == "" {
+			return prompt
+		}
+		return prompt + "\n\n" + base
+	}
+}
+
+// SystemPromptActive 表示是否配置了网关级提示词。
+func (g GatewayConfig) SystemPromptActive() bool {
+	return strings.TrimSpace(g.SystemPrompt) != ""
 }
 
 func (g GatewayConfig) MaxAttempts() int {
