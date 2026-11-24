@@ -36,5 +36,5 @@
   "auth": {
     "api_key": ""
   },
-  "metrics_file": "/data/metrics.json"
+  "metrics_file": ""
 }
